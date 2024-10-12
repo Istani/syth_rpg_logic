@@ -5,10 +5,13 @@ debug.log("Started");
 var db = require("@syth/database");
 
 const fs = require("fs");
+const path = require('path');
 const sleep = require("await-sleep");
 const moment = require("moment");
 const emoji = require("node-emoji"); // https://raw.githubusercontent.com/omnidan/node-emoji/master/lib/emoji.json
-const RPG_Items = require("./data/items.json");
+
+const itmes_path = path.join(__dirname, 'data/items.json');
+const RPG_Items = require(itmes_path);
 
 // TODO: Add Settings to DB?
 var settings = {};
