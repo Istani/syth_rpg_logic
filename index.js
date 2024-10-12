@@ -11,13 +11,15 @@ const moment = require("moment");
 const emoji = require("node-emoji"); // https://raw.githubusercontent.com/omnidan/node-emoji/master/lib/emoji.json
 
 const itmes_path = path.join(__dirname, 'data/items.json');
+const settings_path = path.join(__dirname, 'temp/settings.json');
+
 const RPG_Items = require(itmes_path);
 
 // TODO: Add Settings to DB?
 var settings = {};
 function load_settings() {
   try {
-    settings = require("./temp/settings.json");
+    settings = require(settings_path);
     settings.last_time = new Date(settings.last_time);
     // Settings die mit der Zeit dazu gekommen sind, aber vielleicht noch nicht in der Datei stehen
     if (typeof settings.inventory_space == "undefined") {
@@ -42,7 +44,7 @@ function load_settings() {
 }
 function save_settings() {
   var data = JSON.stringify(settings, null, 2);
-  fs.writeFileSync("./temp/settings.json", data);
+  fs.writeFileSync(settings_path, data);
   load_settings();
 }
 load_settings();
