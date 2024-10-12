@@ -1,0 +1,19 @@
+{
+  "name": "@syth/rpg_game",
+  "version": "0.0.0",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "devDependencies": {
+    "cz-conventional-changelog": "^3.3.0"
+  },
+  "config": {
+    "commitizen": {
+      "path": "../../node_modules/cz-conventional-changelog"
+    }
+  },
+  "dependencies": {
+    "await-sleep": "^0.0.1",
+    "moment": "^2.30.1"
+  }
+}
