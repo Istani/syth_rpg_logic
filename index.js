@@ -3,6 +3,7 @@ var debug = require("@istani/debug")(require('./package.json').name);
 debug.log("Started");
 
 var db = require("@syth/database");
+var RPG_AI_Text = require("@syth/rpg-prompt");
 
 const fs = require("fs");
 const path = require('path');
@@ -32,7 +33,7 @@ function load_settings() {
     console.error("Settings", "Couldn't load!");
     settings = {};
     settings.last_time = new Date();
-    settings.last_time.setDate(settings.last_time.getDate() - 7);
+    settings.last_time.setDate(settings.last_time.getDate() - 100);
     settings.mvp_role = "RPG-MVP";
     settings.min_dmg = 5;
     settings.min_hp = 100;
@@ -228,7 +229,9 @@ async function consumeItem(syth_user, msg, itemressource) {
               char[0].hp = char[0].hp_max;
             }
             await db.RPG_Characters.query().patch(char[0]).where("owner", char[0].owner).where("id", char[0].id);
-            output_text ="💊 " + char[0].displayname + " heilt sich um " + temp_heal + "!";
+            //output_text ="💊 " + char[0].displayname + " heilt sich um " + temp_heal + "!";
+            output_text = await RPG_AI_Text.Use_Item(syth_user, char[0].displayname, element.name);
+            output_text += "[💊 " + temp_heal + "]";
             if (temp_heal > 0) {
               send_log(syth_user,output_text,msg,[char[0].displayname],[temp_heal]);
             }
@@ -244,7 +247,9 @@ async function consumeItem(syth_user, msg, itemressource) {
     }
   }
   if (output_text == "") {
-    output_text = "❌ " + char[0].displayname + ": Kein Item gefunden!";
+    //output_text = "❌ " + char[0].displayname + ": Kein Item gefunden!";
+    output_text = await RPG_AI_Text.Failed_Use_Item(syth_user, char[0].displayname, itemressource);
+    output_text += " [Kein Item]";
   }
   await outgoing(msg, output_text);
 }
@@ -261,10 +266,14 @@ async function collectRessource(syth_user, msg, itemname) {
     isCollected = await addItemToInventory(syth_user, msg, item);
   }
   if (isCollected) {
-    var text ="⛏ " +char[0].displayname +" sammelt " +item.icon +" " +item.name +"!";
+    //var text ="⛏ " +char[0].displayname +" sammelt " +item.icon +" " +item.name +"!";
+    var text = await RPG_AI_Text.Collect_Item(syth_user, char[0].displayname, item.name);
+    text += " ["+item.icon+" " +item.name +"]";
     await add_cooldown(syth_user, msg, settings.min_cooldown);
   } else {
-    var text ="❌ " + char[0].displayname + ": Item konnte nicht aufgesammelt werden!";
+    //var text ="❌ " + char[0].displayname + ": Item konnte nicht aufgesammelt werden!";
+    var text = await RPG_AI_Text.Failed_Collect_Item(syth_user, char[0].displayname);
+    text += " [Kein Item]";
   }
   await outgoing(msg, text);
 }
@@ -303,7 +312,10 @@ async function genMonster(syth_user, msg) {
       if (monsters[0].hp <= 0 && this_moment >= next_moment) {
         await db.RPG_Monsters.query().delete().where("owner", syth_user);
       } else if (this_moment < next_moment) {
-        await outgoing(msg, "🎶 Kein Neues Monster, der Dungeon Keeper braucht noch Pause!");
+        var text = await RPG_AI_Text.Failed_Spawn_Monster(syth_user);
+        text += " [Keine Beschwörung]";
+        //await outgoing(msg, "🎶 Kein Neues Monster, der Dungeon Keeper braucht noch Pause!");
+        await outgoing(msg, text);
         return;
       }
     }
@@ -371,7 +383,9 @@ async function genMonster(syth_user, msg) {
     tmp_monster.dmg_cap = dmg_cap;
     tmp_monster.hp_cap = hp_cap;
     await db.RPG_Monsters.query().insert(tmp_monster);
-    var output_string ="👾 Ein wildes " +tmp_monster.name +" erscheint! (" +tmp_monster.hp_max +" HP)";
+    //var output_string ="👾 Ein wildes " +tmp_monster.name +" erscheint! (" +tmp_monster.hp_max +" HP)";
+    var output_string = await RPG_AI_Text.Spawn_Monster(syth_user);
+    output_string += " [Beschwörung]";
     await outgoing_multi(syth_user, msg, output_string);
     send_log(syth_user,output_string,msg,[tmp_monster.name],[tmp_monster.hp_max]);
   } else {
@@ -417,7 +431,10 @@ async function genChar(syth_user, msg) {
 async function attackMonster(syth_user, msg) {
   var monsters = await db.RPG_Monsters.query().where("owner", syth_user).where("hp", ">", 0);
   if (monsters.length == 0) {
-    await outgoing(msg, "🔍 " + msg.username + ": Kein Monster in Sicht!");
+    var text = await RPG_AI_Text.Failed_Spawn_Monster(syth_user);
+    text += " [Keine Monster]";
+    //await outgoing(msg, "🔍 " + msg.username + ": Kein Monster in Sicht!");
+    await outgoing(msg, text);
     return;
   }
 
@@ -425,9 +442,11 @@ async function attackMonster(syth_user, msg) {
   var char = await db.RPG_Characters.query().where("owner", syth_user).where("id", msg.user);
 
   if (char[0].hp <= 0) {
-    var output_string ="💀 " + msg.username + ": Ist Tot und kann nicht mehr angreifen!";
+    //var output_string ="💀 " + msg.username + ": Ist Tot und kann nicht mehr angreifen!";
+    var output_string = await RPG_AI_Text.Failed_Attack_Monster(syth_user, msg.username);
+    output_string += " [Zu Verletzt]";
     await outgoing(msg, output_string);
-    send_log(syth_user, output_string, msg, [msg.username]);
+    send_log(syth_user, output_string, msg, [msg.username],[0]);
     return;
   }
 
@@ -446,7 +465,9 @@ async function attackMonster(syth_user, msg) {
   monsters[0].atk += tmp_dmg;
   monsters[0].counter_attacks++;
 
-  var output_string = "⚔ " +msg.username +" hat " +tmp_dmg +" Schaden an " +monsters[0].name +" gemacht!";
+  //var output_string = "⚔ " +msg.username +" hat " +tmp_dmg +" Schaden an " +monsters[0].name +" gemacht!";
+  var output_string = await RPG_AI_Text.Attack_Monster(syth_user, msg.username);
+  output_string += " [⚔ " +tmp_dmg +"]";
   await outgoing(msg, output_string);
   send_log(syth_user,output_string,msg,[msg.username, monsters[0].name],[tmp_dmg]);
 
@@ -466,7 +487,9 @@ async function attackMonster(syth_user, msg) {
       tanks[0].threat = 0;
     }
     
-    var output_string ="⚔ " +monsters[0].name +" hat " +mob_dmg +" Schaden an " +tanks[0].displayname +" gemacht!";
+    //var output_string ="⚔ " +monsters[0].name +" hat " +mob_dmg +" Schaden an " +tanks[0].displayname +" gemacht!";
+    var output_string = await RPG_AI_Text.Defence_Monster(syth_user, msg.username);
+    output_string += " [🛡️ " + mob_dmg +"]";
     await outgoing(msg, output_string);
     send_log(syth_user,output_string,msg,[monsters[0].name, tanks[0].displayname],[mob_dmg]);
     await db.RPG_Characters.query().patch(tanks[0]).where("owner", tanks[0].owner).where("id", tanks[0].id);
@@ -475,16 +498,24 @@ async function attackMonster(syth_user, msg) {
   await db.RPG_Monsters.query().patch(monsters[0]).where("owner", syth_user);
 
   if (monsters[0].hp == 0) {
+    /*
     var mvps = await db.RPG_Characters.query().where("owner", syth_user).orderBy("total_dmg", "DESC").limit(5);
 
     var outgoing_messages = "👑 Ihr habt das Monster besiegt!";
     await outgoing_multi(syth_user, msg, outgoing_messages);
     send_log(syth_user,outgoing_messages + " MVP: " + mvps[0].displayname,msg,[mvps[0].displayname],[]);
-
+    
     for (let m_index = 0; m_index < mvps.length; m_index++) {
       const element = mvps[m_index];
       await outgoing_multi(syth_user,msg,(m_index + 1) + ". " + element.displayname);
-    }
+    }*/
+    var outgoing_messages = await RPG_AI_Text.Kill_Monster(syth_user, msg.username);
+    await outgoing_multi(syth_user, msg, outgoing_messages);
+
+    var outgoing_messages = await RPG_AI_Text.Party_Heros(syth_user);
+    await outgoing_multi(syth_user, msg, outgoing_messages);
+
+    await RPG_AI_Text.Image_Story(syth_user);
   }
 }
 
@@ -492,6 +523,8 @@ async function showMonster(syth_user, msg) {
   var monsters = await db.RPG_Monsters.query().where("owner", syth_user).where("hp", ">", 0);
   if (monsters.length == 0) {
     await outgoing(msg, "🔍 " + msg.username + ": Kein Monster in Sicht!");
+    //var text = await RPG_AI_Text.Failed_Spawn_Monster(syth_user);
+    //await outgoing(msg, text);
     return;
   }
 
@@ -546,6 +579,7 @@ async function check_cooldown(syth_user, msg) {
   var chars = await db.RPG_Characters.query().where("owner", syth_user).where("id", msg.user);
 
   if (chars[0].cooldown == "0") {
+
     return false;
   }
   var this_moment = moment();
@@ -557,6 +591,7 @@ async function check_cooldown(syth_user, msg) {
 
   if (hasCooldown == true) {
     var text = "❌ " + chars[0].displayname + ": Cooldown!";
+    //var text = await RPG_AI_Text.Cooldown(syth_user, chars[0].displayname);
     await outgoing(msg, text);
   }
 
